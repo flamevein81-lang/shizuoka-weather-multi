@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>静岡市 気象データ多年度比較 (2024-2026)</title>
+  <meta name="description" content="静岡市の気象データを2024・2025・2026年と平年値で比較するインタラクティブグラフ。気象庁データを自動取得。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d2e;
+      --surface2:  #242740;
+      --border:    #2d3154;
+      --text:      #e8eaf0;
+      --text-dim:  #8b90a8;
+      --accent:    #5c6bc0;
+      --blue:      #2196F3;
+      --orange:    #FF9800;
+      --red:       #F44336;
+      --gray:      #9E9E9E;
+      --radius:    12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── ヘッダー ── */
+    header {
+      background: linear-gradient(135deg, #1a1d2e 0%, #242740 50%, #1a1d2e 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 28px 32px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    header h1 {
+      font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    header h1 span { color: #7986cb; }
+    .header-meta {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      text-align: right;
+      line-height: 1.7;
+    }
+
+    /* ── レジェンドバッジ ── */
+    .legend-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 14px 32px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .badge-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .dot-normal  { background: var(--gray); }
+    .dot-2024    { background: var(--blue); }
+    .dot-2025    { background: var(--orange); }
+    .dot-2026    { background: var(--red); }
+
+    /* ── メインコンテンツ ── */
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ── チャートカード ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      position: relative;
+    }
+    .card-title {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title::before {
+      content: '';
+      display: block;
+      width: 3px;
+      height: 16px;
+      border-radius: 2px;
+      background: var(--accent);
+    }
+    .chart-wrap {
+      position: relative;
+      height: 340px;
+    }
+    @media (max-width: 600px) {
+      .chart-wrap { height: 260px; }
+    }
+
+    /* ── データテーブル ── */
+    .table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    thead th {
+      background: var(--surface2);
+      color: var(--text-dim);
+      padding: 10px 12px;
+      text-align: center;
+      font-weight: 500;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+    tbody tr:hover { background: rgba(92,107,192,0.08); }
+    tbody td {
+      padding: 8px 12px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    td.label { font-weight: 500; color: var(--text-dim); }
+    td.normal { color: var(--gray); }
+    td.y2024  { color: var(--blue); }
+    td.y2025  { color: var(--orange); }
+    td.y2026  { color: var(--red); font-weight: 600; }
+    td.null   { color: rgba(255,255,255,0.15); }
+
+    /* ── フッター ── */
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: #7986cb; text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📊 静岡市 気象データ <span>多年度比較</span></h1>
+  <div class="header-meta">
+    最新データ: 7/6（2026年）<br>
+    更新: 2026-08-05 17:27 JST ／ データ: <a href="https://www.jma.go.jp/" style="color:#7986cb">気象庁</a>
+  </div>
+</header>
+
+<div class="legend-bar">
+  <span class="badge"><span class="badge-dot dot-normal"></span>平年値（1991-2020）</span>
+  <span class="badge"><span class="badge-dot dot-2024"></span>2024年</span>
+  <span class="badge"><span class="badge-dot dot-2025"></span>2025年</span>
+  <span class="badge"><span class="badge-dot dot-2026"></span>2026年</span>
+</div>
+
+<main>
+
+  <!-- 平均気温チャート -->
+  <div class="card">
+    <div class="card-title">🌡 平均気温の推移（℃）</div>
+    <div class="chart-wrap">
+      <canvas id="tempChart"></canvas>
+    </div>
+  </div>
+
+  <!-- 降水量チャート -->
+  <div class="card">
+    <div class="card-title">🌧 降水量の推移（mm）</div>
+    <div class="chart-wrap">
+      <canvas id="precChart"></canvas>
+    </div>
+  </div>
+
+  <!-- データテーブル -->
+  <div class="card">
+    <div class="card-title">📋 データ一覧</div>
+    <div class="table-wrap">
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th>期間</th>
+            <th>平年 気温</th>
+            <th>2024年 気温</th>
+            <th>2025年 気温</th>
+            <th>2026年 気温</th>
+            <th>平年 降水量</th>
+            <th>2024年 降水量</th>
+            <th>2025年 降水量</th>
+            <th>2026年 降水量</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  データ出典: <a href="https://www.data.jma.go.jp/stats/etrn/" target="_blank">気象庁 過去の気象データ検索</a>
+  ／ 気象観測地点: 静岡市 (地点番号: 47656)
+  ／ GitHub Actions による自動更新
+</footer>
+
+<script>
+const LABELS = ["1/1", "1/2", "1/3", "1/4", "1/5", "1/6", "2/1", "2/2", "2/3", "2/4", "2/5", "2/6", "3/1", "3/2", "3/3", "3/4", "3/5", "3/6", "4/1", "4/2", "4/3", "4/4", "4/5", "4/6", "5/1", "5/2", "5/3", "5/4", "5/5", "5/6", "6/1", "6/2", "6/3", "6/4", "6/5", "6/6", "7/1", "7/2", "7/3", "7/4", "7/5", "7/6", "8/1", "8/2", "8/3", "8/4", "8/5", "8/6", "9/1", "9/2", "9/3", "9/4", "9/5", "9/6", "10/1", "10/2", "10/3", "10/4", "10/5", "10/6", "11/1", "11/2", "11/3", "11/4", "11/5", "11/6", "12/1", "12/2", "12/3", "12/4", "12/5", "12/6"];
+const TEMP_DATASETS = [{"label": "平年 平均気温 (1991-2020)", "data": [7.3, 7.1, 6.9, 6.8, 6.6, 6.6, 6.8, 7.2, 7.6, 8.0, 8.5, 8.9, 9.4, 9.8, 10.3, 10.9, 11.5, 12.2, 13.2, 14.0, 14.8, 15.6, 16.3, 17.0, 17.8, 18.4, 18.9, 19.4, 19.9, 20.5, 20.9, 21.5, 22.1, 22.6, 23.3, 24.1, 24.8, 25.4, 25.9, 26.3, 26.7, 27.1, 27.4, 27.6, 27.6, 27.5, 27.2, 26.8, 26.4, 25.8, 25.0, 24.1, 23.2, 22.4, 21.7, 20.9, 20.0, 19.0, 18.1, 17.2, 16.4, 15.6, 14.7, 13.8, 13.0, 12.2, 11.3, 10.3, 9.5, 8.9, 8.4, 7.8], "borderColor": "#9E9E9E", "backgroundColor": "rgba(158,158,158,0.1)", "borderWidth": 1.5, "borderDash": [6, 4], "pointRadius": 2, "tension": 0.3, "fill": false, "order": 10}, {"label": "2024年 平均気温", "data": [10.0, 8.6, 8.6, 9.7, 8.3, 7.6, 9.3, 7.7, 10.6, 14.5, 9.0, 9.3, 9.3, 8.5, 10.4, 12.3, 9.4, 15.6, 15.4, 16.7, 16.6, 18.4, 18.4, 20.1, 18.1, 18.7, 19.5, 20.0, 21.4, 21.3, 20.5, 22.1, 23.9, 22.7, 25.6, 25.8, 28.4, 30.3, 26.4, 28.8, 30.7, 30.8, 29.8, 29.1, 30.5, 30.4, 28.2, 25.5, 27.1, 28.5, 28.6, 29.4, 26.2, 25.1, 24.9, 22.5, 21.8, 23.0, 21.3, 19.4, 19.4, 16.0, 18.4, 15.9, 13.1, 13.4, 12.2, 9.8, 8.4, 8.8, 8.2, 8.4], "borderColor": "#2196F3", "backgroundColor": "rgba(33,150,243,0.15)", "borderWidth": 2.5, "pointRadius": 3, "tension": 0.3, "fill": false, "order": 0}, {"label": "2025年 平均気温", "data": [6.8, 6.7, 7.3, 7.4, 9.0, 7.2, 7.2, 4.6, 9.0, 7.1, 5.7, 10.2, 10.8, 8.8, 12.0, 9.3, 16.1, 15.8, 12.2, 14.9, 15.4, 18.1, 18.8, 16.9, 18.2, 18.0, 19.8, 22.4, 21.8, 19.8, 21.4, 21.9, 24.0, 27.5, 27.2, 27.5, 27.8, 29.0, 27.1, 26.6, 29.1, 29.3, 30.7, 30.5, 27.9, 28.8, 29.3, 29.3, 28.6, 28.1, 27.5, 27.1, 24.5, 25.9, 22.9, 24.3, 20.9, 21.7, 15.7, 17.3, 15.7, 16.1, 14.2, 13.9, 12.8, 12.2, 11.1, 9.8, 10.7, 10.7, 11.9, 8.4], "borderColor": "#FF9800", "backgroundColor": "rgba(255,152,0,0.15)", "borderWidth": 2.5, "pointRadius": 3, "tension": 0.3, "fill": false, "order": 1}, {"label": "2026年 平均気温", "data": [6.0, 7.0, 7.5, 11.9, 4.9, 4.8, 6.5, 5.9, 9.1, 8.6, 13.1, 13.9, 12.5, 10.4, 9.0, 13.1, 11.8, 15.1, 15.5, 15.9, 19.3, 17.6, 17.6, 18.1, 18.7, 19.6, 19.6, 21.1, 20.3, 23.6, 21.4, 21.3, 21.8, 23.3, 23.4, 23.0, 23.9, 24.4, 27.3, 28.8, 30.3, 28.0, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "borderColor": "#F44336", "backgroundColor": "rgba(244,67,54,0.15)", "borderWidth": 2.5, "pointRadius": 3, "tension": 0.3, "fill": false, "order": 2}];
+const PREC_DATASETS = [{"label": "平年 降水量", "data": [9.2, 11.0, 13.4, 14.8, 15.0, 17.4, 13.4, 13.1, 15.9, 19.9, 24.9, 23.6, 32.2, 32.0, 31.3, 32.9, 34.0, 41.6, 36.4, 38.2, 39.0, 38.8, 36.9, 33.7, 32.9, 35.8, 37.6, 35.7, 33.0, 35.6, 28.3, 33.5, 43.1, 53.1, 57.4, 59.8, 62.4, 58.0, 48.8, 40.6, 37.8, 41.0, 26.2, 25.9, 31.7, 34.7, 34.1, 43.2, 42.8, 47.9, 49.9, 49.4, 46.5, 47.2, 51.7, 51.1, 43.3, 35.0, 30.5, 31.6, 21.6, 20.6, 22.1, 23.6, 23.9, 22.4, 19.8, 16.5, 13.3, 10.9, 10.1, 10.9], "backgroundColor": "rgba(158,158,158,0.4)", "borderColor": "rgba(158,158,158,0.7)", "borderWidth": 1, "order": 10}, {"label": "2024年 降水量", "data": [6.5, 0.0, 0.0, 16.5, 40.5, 2.5, 33.0, 3.0, 20.0, 110.5, 75.0, 7.0, 44.5, 11.0, 87.5, 0.0, 23.0, 267.0, 50.0, 93.5, 0.0, 16.0, 44.0, 6.5, 32.5, 66.0, 131.0, 79.0, 0.0, 100.5, 9.0, 16.5, 0.5, 162.0, 87.0, 158.5, 26.5, 27.0, 70.0, 50.0, 0.0, 0.0, 0.0, 95.0, 0.0, 7.5, 227.5, 741.0, 44.0, 0.0, 41.0, 2.0, 50.5, 7.5, 163.5, 52.0, 0.0, 2.5, 33.5, 74.5, 76.0, 3.0, 11.0, 15.0, 0.0, 133.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "backgroundColor": "rgba(33,150,243,0.6)", "borderColor": "#2196F3", "borderWidth": 1, "order": 0}, {"label": "2025年 降水量", "data": [0.0, 25.5, 0.0, 2.5, 4.5, 1.0, 7.0, 0.0, 15.5, 1.5, 0.0, 0.0, 61.5, 2.0, 36.0, 35.5, 4.0, 31.0, 10.5, 6.0, 55.0, 0.0, 60.5, 15.5, 41.0, 61.5, 11.0, 100.0, 77.0, 23.0, 53.5, 41.0, 100.0, 0.0, 3.5, 5.0, 1.5, 2.0, 97.0, 138.5, 0.0, 0.0, 0.0, 52.0, 29.0, 53.5, 0.0, 0.0, 242.5, 0.0, 159.5, 2.0, 2.5, 0.5, 7.5, 0.0, 70.5, 5.0, 39.0, 59.5, 0.5, 10.5, 0.0, 0.0, 0.0, 7.5, 0.0, 0.0, 20.5, 21.0, 23.0, 0.0], "backgroundColor": "rgba(255,152,0,0.6)", "borderColor": "#FF9800", "borderWidth": 1, "order": 1}, {"label": "2026年 降水量", "data": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.5, 25.5, 3.0, 66.0, 0.0, 37.5, 6.0, 9.5, 29.0, 32.0, 126.5, 156.5, 118.5, 9.5, 1.0, 29.5, 43.5, 138.0, 0.0, 0.0, 0.0, 60.0, 2.5, 147.0, 19.0, 14.0, 74.5, 81.0, 158.0, 122.5, 15.5, 0.0, 6.5, 0.0, 52.5, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "backgroundColor": "rgba(244,67,54,0.6)", "borderColor": "#F44336", "borderWidth": 1, "order": 2}];
+
+// ── 共通オプション ──
+const gridColor = 'rgba(255,255,255,0.06)';
+const tickColor = '#8b90a8';
+const commonScales = (yLabel) => ({
+  x: {
+    ticks: { color: tickColor, maxRotation: 45, autoSkip: true, maxTicksLimit: 24 },
+    grid:  { color: gridColor },
+  },
+  y: {
+    ticks: { color: tickColor },
+    grid:  { color: gridColor },
+    title: { display: true, text: yLabel, color: tickColor, font: { size: 11 } },
+  },
+});
+
+const tooltipPlugin = {
+  backgroundColor: 'rgba(26,29,46,0.95)',
+  titleColor: '#e8eaf0',
+  bodyColor: '#b0b5cc',
+  borderColor: '#2d3154',
+  borderWidth: 1,
+  padding: 10,
+};
+
+// ── 気温チャート ──
+new Chart(document.getElementById('tempChart'), {
+  type: 'line',
+  data: { labels: LABELS, datasets: TEMP_DATASETS },
+  options: {
+    responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: '#e8eaf0', font: { size: 11 }, boxWidth: 20 } },
+      tooltip: tooltipPlugin,
+    },
+    scales: {
+      ...commonScales('平均気温 (℃)'),
+      y: { ...commonScales('').y, suggestedMin: 0, suggestedMax: 32 },
+    },
+  },
+});
+
+// ── 降水量チャート ──
+new Chart(document.getElementById('precChart'), {
+  type: 'bar',
+  data: { labels: LABELS, datasets: PREC_DATASETS },
+  options: {
+    responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: '#e8eaf0', font: { size: 11 }, boxWidth: 20 } },
+      tooltip: tooltipPlugin,
+    },
+    scales: {
+      ...commonScales('降水量 (mm)'),
+      x: { ...commonScales('').x, stacked: false },
+      y: { ...commonScales('降水量 (mm)').y, min: 0 },
+    },
+  },
+});
+
+// ── テーブル生成 ──
+const TEMP_VALS = TEMP_DATASETS.map(d => d.data);
+const PREC_VALS = PREC_DATASETS.map(d => d.data);
+const tbody = document.getElementById('tableBody');
+
+const fmt = (v, cls) => v === null
+  ? `<td class="null">―</td>`
+  : `<td class="${cls}">${v}°</td>`;
+const fmtP = (v, cls) => v === null
+  ? `<td class="null">―</td>`
+  : `<td class="${cls}">${v} mm</td>`;
+
+LABELS.forEach((lbl, i) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="label">${lbl}</td>
+    ${fmt(TEMP_VALS[0][i], 'normal')}
+    ${fmt(TEMP_VALS[1][i], 'y2024')}
+    ${fmt(TEMP_VALS[2][i], 'y2025')}
+    ${fmt(TEMP_VALS[3][i], 'y2026')}
+    ${fmtP(PREC_VALS[0][i], 'normal')}
+    ${fmtP(PREC_VALS[1][i], 'y2024')}
+    ${fmtP(PREC_VALS[2][i], 'y2025')}
+    ${fmtP(PREC_VALS[3][i], 'y2026')}
+  `;
+  tbody.appendChild(tr);
+});
+</script>
+</body>
+</html>

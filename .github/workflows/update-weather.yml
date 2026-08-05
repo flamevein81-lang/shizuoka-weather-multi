@@ -1,0 +1,77 @@
+name: Shizuoka Weather Multi-Year Update
+
+on:
+  # 毎月 2,6,11,16,21,26日の JST 05:00 に実行 (= UTC 20:00 前日)
+  # ※ JST 05:00 = UTC 20:00前日のため cronの日付は1日前にずらす
+  # ※ UTC 1日(=JST 2日)を追加: 前月の第6半旬(26〜末日)を月が替わった翌日に取得
+  schedule:
+    - cron: '0 20 1,5,10,15,20,25 * *'
+  # 手動実行も可能
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-weather:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Japanese fonts (for matplotlib)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q fonts-noto-cjk
+          fc-cache -fv
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch weather data (2024, 2025, 2026 + normals)
+        env:
+          MPLBACKEND: Agg
+        run: python shizuoka_weather_multi.py
+
+      - name: Generate HTML report
+        env:
+          MPLBACKEND: Agg
+        run: python generate_report.py
+
+      - name: Commit and push updates
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add shizuoka_weather.csv \
+                  shizuoka_weather_plot.png \
+                  index.html || true
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            TODAY=$(date -d '+9 hours' '+%Y-%m-%d')
+            git commit -m "weather: auto update ${TODAY}"
+            git push
+            echo "Push complete"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Shizuoka Weather Multi-Year Update" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Run time (JST) | $(date -d '+9 hours' '+%Y-%m-%d %H:%M') |" >> $GITHUB_STEP_SUMMARY
+          echo "| CSV rows | $(wc -l < shizuoka_weather.csv) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Years | 2024, 2025, 2026 |" >> $GITHUB_STEP_SUMMARY

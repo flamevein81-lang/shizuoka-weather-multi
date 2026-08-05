@@ -1,0 +1,5 @@
+weather_update.log
+*.pyc
+__pycache__/
+.DS_Store
+shizuoka_weather_plot.png
